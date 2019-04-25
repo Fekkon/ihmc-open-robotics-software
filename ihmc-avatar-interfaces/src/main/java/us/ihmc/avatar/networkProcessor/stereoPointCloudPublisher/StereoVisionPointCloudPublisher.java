@@ -6,6 +6,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import controller_msgs.msg.dds.RobotConfigurationData;
 import controller_msgs.msg.dds.StereoVisionPointCloudMessage;
@@ -39,7 +40,7 @@ public class StereoVisionPointCloudPublisher
    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(ThreadTools.getNamedThreadFactory(name));
    private ScheduledFuture<?> publisherTask;
 
-   private final AtomicReference<ColorPointCloudData> rosPointCloud2ToPublish = new AtomicReference<>(null);
+   private Supplier<ColorPointCloudData> colorPointCloudDataSupplier = () -> null;
 
    private final String robotName;
    private final FullRobotModel fullRobotModel;
@@ -58,7 +59,6 @@ public class StereoVisionPointCloudPublisher
       this(modelFactory.getRobotDescription().getName(), modelFactory.createFullRobotModel(), ros2Node, null, robotConfigurationDataTopicName);
    }
 
-
    public StereoVisionPointCloudPublisher(String robotName, FullRobotModel fullRobotModel, RealtimeRos2Node ros2Node, String robotConfigurationDataTopicName)
    {
       this(robotName, fullRobotModel, null, ros2Node, robotConfigurationDataTopicName);
@@ -72,17 +72,23 @@ public class StereoVisionPointCloudPublisher
 
       if (ros2Node != null)
       {
-         ROS2Tools.createCallbackSubscription(ros2Node, RobotConfigurationData.class, robotConfigurationDataTopicName,
+         ROS2Tools.createCallbackSubscription(ros2Node,
+                                              RobotConfigurationData.class,
+                                              robotConfigurationDataTopicName,
                                               s -> robotConfigurationDataBuffer.receivedPacket(s.takeNextData()));
          pointcloudPublisher = ROS2Tools.createPublisher(ros2Node, StereoVisionPointCloudMessage.class, ROS2Tools.getDefaultTopicNameGenerator());
          pointcloudRealtimePublisher = null;
       }
       else
       {
-         ROS2Tools.createCallbackSubscription(realtimeRos2Node, RobotConfigurationData.class, robotConfigurationDataTopicName,
+         ROS2Tools.createCallbackSubscription(realtimeRos2Node,
+                                              RobotConfigurationData.class,
+                                              robotConfigurationDataTopicName,
                                               s -> robotConfigurationDataBuffer.receivedPacket(s.takeNextData()));
          pointcloudPublisher = null;
-         pointcloudRealtimePublisher = ROS2Tools.createPublisher(realtimeRos2Node, StereoVisionPointCloudMessage.class, ROS2Tools.getDefaultTopicNameGenerator());
+         pointcloudRealtimePublisher = ROS2Tools.createPublisher(realtimeRos2Node,
+                                                                 StereoVisionPointCloudMessage.class,
+                                                                 ROS2Tools.getDefaultTopicNameGenerator());
 
       }
    }
@@ -123,22 +129,39 @@ public class StereoVisionPointCloudPublisher
 
    private RosPointCloudSubscriber createROSPointCloud2Subscriber()
    {
-      return new RosPointCloudSubscriber()
+      final AtomicReference<PointCloud2> rosPointCloud2ToPublish = new AtomicReference<>(null);
+
+      colorPointCloudDataSupplier = new Supplier<ColorPointCloudData>()
+      {
+         @Override
+         public ColorPointCloudData get()
+         {
+            PointCloud2 rosPointCloud2 = rosPointCloud2ToPublish.getAndSet(null);
+            if (rosPointCloud2 == null)
+               return null;
+            else
+               return new ColorPointCloudData(rosPointCloud2, MAX_NUMBER_OF_POINTS);
+         }
+      };
+
+      RosPointCloudSubscriber rosPointCloudSubscriber = new RosPointCloudSubscriber()
       {
          @Override
          public void onNewMessage(PointCloud2 pointCloud)
          {
-            rosPointCloud2ToPublish.set(new ColorPointCloudData(pointCloud, MAX_NUMBER_OF_POINTS));
+            rosPointCloud2ToPublish.set(pointCloud);
 
             if (Debug)
                System.out.println("Receiving point cloud, n points: " + pointCloud.getHeight() * pointCloud.getWidth());
          }
       };
+
+      return rosPointCloudSubscriber;
    }
 
-   public void updateScanData(ColorPointCloudData scanDataToPublish)
+   public void setColorPointCloudDataSupplier(Supplier<ColorPointCloudData> supplier)
    {
-      this.rosPointCloud2ToPublish.set(scanDataToPublish);
+      colorPointCloudDataSupplier = supplier;
    }
 
    public void readAndPublish()
@@ -167,7 +190,7 @@ public class StereoVisionPointCloudPublisher
 
    private void transformDataAndPublish()
    {
-      ColorPointCloudData pointCloudData = rosPointCloud2ToPublish.getAndSet(null);
+      ColorPointCloudData pointCloudData = colorPointCloudDataSupplier.get();
 
       if (pointCloudData == null)
          return;
