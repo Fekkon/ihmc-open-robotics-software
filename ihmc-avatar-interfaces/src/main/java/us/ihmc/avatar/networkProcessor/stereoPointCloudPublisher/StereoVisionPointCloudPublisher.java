@@ -33,7 +33,7 @@ public class StereoVisionPointCloudPublisher
 {
    private static final boolean Debug = false;
 
-   private static final int MAX_NUMBER_OF_POINTS = 200000;
+   private static final int MAX_NUMBER_OF_POINTS = 400000;
    private static final ReferenceFrame worldFrame = ReferenceFrame.getWorldFrame();
 
    private final String name = getClass().getSimpleName();

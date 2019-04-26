@@ -48,9 +48,9 @@ public class StereoVisionPointCloudMessagePubSubType implements us.ihmc.pubsub.T
 
       current_alignment += geometry_msgs.msg.dds.QuaternionPubSubType.getMaxCdrSerializedSize(current_alignment);
 
-      current_alignment += 4 + us.ihmc.idl.CDR.alignment(current_alignment, 4);current_alignment += (600000 * 4) + us.ihmc.idl.CDR.alignment(current_alignment, 4);
+      current_alignment += 4 + us.ihmc.idl.CDR.alignment(current_alignment, 4);current_alignment += (1200000 * 4) + us.ihmc.idl.CDR.alignment(current_alignment, 4);
 
-      current_alignment += 4 + us.ihmc.idl.CDR.alignment(current_alignment, 4);current_alignment += (200000 * 4) + us.ihmc.idl.CDR.alignment(current_alignment, 4);
+      current_alignment += 4 + us.ihmc.idl.CDR.alignment(current_alignment, 4);current_alignment += (400000 * 4) + us.ihmc.idl.CDR.alignment(current_alignment, 4);
 
 
       return current_alignment - initial_alignment;
@@ -95,11 +95,11 @@ public class StereoVisionPointCloudMessagePubSubType implements us.ihmc.pubsub.T
 
       geometry_msgs.msg.dds.PointPubSubType.write(data.getSensorPosition(), cdr);
       geometry_msgs.msg.dds.QuaternionPubSubType.write(data.getSensorOrientation(), cdr);
-      if(data.getPointCloud().size() <= 600000)
+      if(data.getPointCloud().size() <= 1200000)
       cdr.write_type_e(data.getPointCloud());else
           throw new RuntimeException("point_cloud field exceeds the maximum length");
 
-      if(data.getColors().size() <= 200000)
+      if(data.getColors().size() <= 400000)
       cdr.write_type_e(data.getColors());else
           throw new RuntimeException("colors field exceeds the maximum length");
 
